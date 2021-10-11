@@ -52,6 +52,12 @@ A minimal performance benchmark based on image_demo. Images in `--image_dir` are
 
 The webcam demo uses OpenCV to capture images from a connected webcam. The result is overlayed with the keypoints and skeletons and rendered to the screen. The default args for the webcam_demo assume device_id=0 for the camera and that 1280x720 resolution is possible.
 
+#### keypoint_demo.py
+
+```
+python keypoint_demo.py --file movie.mp4
+```
+
 ### Credits
 
 The original model, weights, code, etc. was created by Google and can be found at https://github.com/tensorflow/tfjs-models/tree/master/posenet
