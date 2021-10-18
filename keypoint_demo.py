@@ -39,6 +39,7 @@ def main():
                 feed_dict={'image:0': input_image}
             )
 
+            # keypoint_coords->フレームに映った人体のリスト
             pose_scores, keypoint_scores, keypoint_coords = posenet.decode_multi.decode_multiple_poses(
                 heatmaps_result.squeeze(axis=0),
                 offsets_result.squeeze(axis=0),
@@ -55,19 +56,24 @@ def main():
                 display_image, pose_scores, keypoint_scores, keypoint_coords,
                 min_pose_score=0.15, min_part_score=0.1)
 
-            # output key points frame by frame
+            # フレーム毎に人体のパーツの座標を出力する
+            # フレーム数を出力する
             print(frame_count)
             for obj in keypoint_coords:
+            # ゼロ行列ではない場合人体の座標であるとして出力する
                 if np.all(obj != 0):
-					# print key points
+                    # 1人ごとに点線を出力する
                     print("-" * 30)
+                    # キーポイントを出力する
                     print(obj)
-
+            # openposeで処理した画像を映し出す
             cv2.imshow('posenet', overlay_image)
             frame_count += 1
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            # qキーが押されたら処理を中止する
+            if cv2.waitKeyEx(1) & 0xFF == ord('q'):
                 break
 
+        # ここから先はバグのため到達不可
         print('Average FPS: ', frame_count / (time.time() - start))
 
 
