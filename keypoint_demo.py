@@ -86,9 +86,9 @@ def main():
                     # print(obj)
                     # 手首のピクセル上の移動距離を出力する
                     if np.all(leftWrist != -1):
-                        print(math.sqrt(np.linalg.norm(obj[9] - leftWrist)))
+                        print(np.linalg.norm(obj[9] - leftWrist))
                     if np.all(rightWrist != -1):
-                        print(math.sqrt(np.linalg.norm(obj[10] - rightWrist)))
+                        print(np.linalg.norm(obj[10] - rightWrist))
                     # 肩の座標を更新する
                     leftShoulder = obj[5]
                     rightShoulder = obj[6]
