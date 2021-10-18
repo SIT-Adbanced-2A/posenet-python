@@ -4,6 +4,8 @@ import time
 import argparse
 import numpy as np
 
+import math
+
 import posenet
 
 parser = argparse.ArgumentParser()
@@ -15,6 +17,10 @@ parser.add_argument('--scale_factor', type=float, default=0.7125)
 parser.add_argument('--file', type=str, default=None, help="Optionally use a video file instead of a live camera")
 args = parser.parse_args()
 
+
+def get_angle(vec1, vec2):
+    cos = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+    return np.degrees(math.acos(cos))
 
 def main():
     with tf.Session() as sess:
@@ -30,6 +36,14 @@ def main():
 
         start = time.time()
         frame_count = 0
+
+        leftWrist = [-1, -1]
+        rightWrist = [-1, -1]
+        leftElbow = [-1, -1]
+        rightElbow = [-1, -1]
+        leftShoulder = [-1, -1]
+        rightShoulder = [-1, -1]
+
         while True:
             input_image, display_image, output_scale = posenet.read_cap(
                 cap, scale_factor=args.scale_factor, output_stride=output_stride)
@@ -69,7 +83,28 @@ def main():
                     # 1人ごとに点線を出力する
                     print("-" * 30)
                     # キーポイントを出力する
-                    print(obj)
+                    # print(obj)
+                    # 手首のピクセル上の移動距離を出力する
+                    if np.all(leftWrist != -1):
+                        print(math.sqrt(np.linalg.norm(obj[9] - leftWrist)))
+                    if np.all(rightWrist != -1):
+                        print(math.sqrt(np.linalg.norm(obj[9] - rightWrist)))
+                    # 肩の座標を更新する
+                    leftShoulder = obj[5]
+                    rightShoulder = obj[6]
+                    # 肘の座標を更新する
+                    leftElbow = obj[7]
+                    rightElbow = obj[8]
+                    # 手首の座標を更新する
+                    leftWrist = obj[9]
+                    rightWrist = obj[10]
+
+                    # 左肘の角度を計算する
+                    print("left ang" + str(get_angle(leftShoulder - leftElbow, leftWrist - leftElbow)))
+
+                    # 右肘の角度を計算する
+                    print("right ang" + str(get_angle(rightShoulder - rightElbow, rightWrist - rightElbow)))
+                    
             # posenetで処理した画像を映し出す
             cv2.imshow('posenet', overlay_image)
             frame_count += 1
