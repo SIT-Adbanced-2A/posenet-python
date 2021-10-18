@@ -52,9 +52,13 @@ def main():
             keypoint_coords *= output_scale
 
             # TODO this isn't particularly fast, use GL for drawing and display someday...
+            # posenetで見つけたkeypointsを画面に上書きする
             overlay_image = posenet.draw_skel_and_kp(
                 display_image, pose_scores, keypoint_scores, keypoint_coords,
                 min_pose_score=0.15, min_part_score=0.1)
+            
+            # keypointを表示させない場合はoverlay_imageをdisplay_imageに差し替える
+            # overlay_image = display_image
 
             # フレーム毎に人体のパーツの座標を出力する
             # フレーム数を出力する
@@ -66,7 +70,7 @@ def main():
                     print("-" * 30)
                     # キーポイントを出力する
                     print(obj)
-            # openposeで処理した画像を映し出す
+            # posenetで処理した画像を映し出す
             cv2.imshow('posenet', overlay_image)
             frame_count += 1
             # qキーが押されたら処理を中止する
