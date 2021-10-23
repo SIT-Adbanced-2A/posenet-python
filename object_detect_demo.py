@@ -1,17 +1,23 @@
 import cv2
 import numpy as np
-from centroid import get_centroid
+from mask import create_mask_cy
  
-cap = cv2.VideoCapture("./video/video07.mp4")
+cap = cv2.VideoCapture("./video/video11.mp4")
 
 ret, frame1 = cap.read()
 prvs = cv2.cvtColor(frame1,cv2.COLOR_BGR2GRAY)
 hsv = np.zeros_like(frame1)
 hsv[...,1] = 255
 
-object_r = []
-object_g = []
-object_b = []
+diameter = 100
+
+joint_mask = np.empty((diameter, diameter, 3), dtype=np.uint8)
+for y in range(diameter):
+    for x in range(diameter):
+        if np.linalg.norm((y - diameter / 2, x - diameter / 2)) <= diameter / 2:
+            joint_mask[y, x] = np.zeros(3, dtype=np.uint8)
+        else:
+            joint_mask[y, x] = np.ones(3, dtype=np.uint8)
 
 while(1):
     ret, frame2 = cap.read()
@@ -23,47 +29,21 @@ while(1):
     hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
     rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
 
-    # 動きの少ないフレームは真っ黒にする
-    if np.linalg.norm(rgb) < 20000 :
-        rgb = np.zeros_like(rgb)
-        for point in object_r:
-            cv2.circle(frame2, point, 3, color=(0, 0, 255), thickness=-1)
-        for point in object_g:
-            cv2.circle(frame2, point, 3, color=(0, 255, 0), thickness=-1)
-        for point in object_b:
-            cv2.circle(frame2, point, 3, color=(255, 0, 0), thickness=-1)
-        cv2.imshow('frame2',rgb)
-        cv2.imshow('frame3',frame2)
-        continue
-    
-    Z = rgb.reshape((-1, 3))
-    Z = np.float32(Z)
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    K = 10
-    # kmeans法でオプティカルフローのrgbを2色に分ける
-    ret,label,center=cv2.kmeans(Z,K,None,criteria,10,cv2.KMEANS_RANDOM_CENTERS)
-    center = np.uint8(center)
-    res = center[label.flatten()]
-    rgb = res.reshape((rgb.shape))
+    joints = np.array([[0, 0], [100, 100], [200, 200], [300, 300], [400, 400], [500, 500], [600, 600]], dtype=np.int32)
 
-    # 動きが激しいピクセルの座標の重心を求める(とても遅い)
-    rcx, rcy, gcx, gcy, bcx, bcy, nonzero_r, nonzero_g ,nonzero_b = get_centroid(rgb)
-
-    # リストに座標を記録する
-    if nonzero_r != 0:
-        object_r.append((rcx, rcy))
-    if nonzero_g != 0:
-        object_g.append((gcx, gcy))
-    if nonzero_b != 0:
-        object_b.append((bcx, bcy))
+    mask = create_mask_cy(rgb.copy(), 90)
+    for j in joints:
+        min_y = int(j[0] - diameter / 2) if int(j[0] - diameter / 2) >= 0 else 0
+        max_y = int(j[0] + diameter / 2) if int(j[0] + diameter / 2) <= len(frame2) else len(frame2)
+        min_x = int(j[1] - diameter / 2) if int(j[1] - diameter / 2) >= 0 else 0
+        max_x = int(j[1] + diameter / 2) if int(j[1] + diameter / 2) <= len(frame2[0]) else len(frame2[0])
+        if min_y >= max_y or min_x >= max_x:
+            continue
+        frame2[min_y : max_y, min_x : max_x] *= joint_mask[min_y - int(j[0] - diameter / 2) : diameter - int(j[0] + diameter / 2) + max_y, min_x - int(j[1] - diameter / 2) : diameter - int(j[1] + diameter / 2) + max_x]
+    frame2 *= mask
+    for p in joints:
+        cv2.circle(frame2, (p[0], p[1]), 5, color=(255, 255, 255), thickness=-1)
     
-    # 重心の座標に赤い点をつける
-    for point in object_r:
-        cv2.circle(frame2, point, 3, color=(0, 0, 255), thickness=-1)
-    for point in object_g:
-        cv2.circle(frame2, point, 3, color=(0, 255, 0), thickness=-1)
-    for point in object_b:
-        cv2.circle(frame2, point, 3, color=(255, 0, 0), thickness=-1)
     # 動きの激しさに色を付けて画面に映す
     cv2.imshow('frame2',rgb)
     cv2.imshow('frame3',frame2)
