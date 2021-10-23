@@ -201,3 +201,4 @@ fabric.properties
 video/
 build/
 *.c
+*.pyd
