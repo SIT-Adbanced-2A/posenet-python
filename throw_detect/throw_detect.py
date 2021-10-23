@@ -78,10 +78,17 @@ def main():
                         display_image[min_y : max_y, min_x : max_x] *= joint_mask[mask_min_y : mask_max_y, mask_min_x : mask_max_x]
 
             display_image *= mm.create_mask(rgb.copy(), 90)
+            cnt, nonzero = mm.get_rgb_array_centroid(display_image)
             for person in keypoint_coords:
                 for joint in person:
                     joint = np.uint32(joint)
                     cv2.circle(display_image, (joint[1], joint[0]), 5, color=(255, 255, 255), thickness=1)
+            if nonzero != 0:
+                cv2.circle(display_image, (cnt[1], cnt[0]), 50, color=(255, 255, 0), thickness=1)
+                cv2.line(display_image, (cnt[1] - 60, cnt[0]), (cnt[1] - 40, cnt[0]), color=(255, 255, 0), thickness=1)
+                cv2.line(display_image, (cnt[1] + 40, cnt[0]), (cnt[1] + 60, cnt[0]), color=(255, 255, 0), thickness=1)
+                cv2.line(display_image, (cnt[1], cnt[0] - 60), (cnt[1], cnt[0] - 40), color=(255, 255, 0), thickness=1)
+                cv2.line(display_image, (cnt[1], cnt[0] + 40), (cnt[1], cnt[0] + 60), color=(255, 255, 0), thickness=1)
             prvs = next
             cv2.imshow('original', next)
             cv2.imshow('object_only', display_image)
