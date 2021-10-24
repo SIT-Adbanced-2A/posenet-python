@@ -37,8 +37,11 @@ def main():
 
         writer = None
 
+        # 直近5フレーム内の放り投げ容疑の度合いを持つ配列
         suspection_points = np.zeros(5, dtype=np.uint8)
+        # 直近100フレームを持つ配列
         old_frames = np.zeros((record_size, len(prvs), len(prvs[0]), 3), dtype=np.uint8)
+        # 関節周りの画素にマスクする配列(直径の幅がdiameterの円)
         joint_mask = np.empty((diameter, diameter, 3), dtype=np.uint8)
         for y in range(diameter):
             for x in range(diameter):
@@ -76,6 +79,7 @@ def main():
                 hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
                 rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
 
+                # 関節周りの画素を黒塗りする
                 for person in keypoint_coords:
                     for joint in person:
                         joint = np.uint32(joint)
@@ -92,7 +96,9 @@ def main():
                                 continue
                             display_image[min_y : max_y, min_x : max_x] *= joint_mask[mask_min_y : mask_max_y, mask_min_x : mask_max_x]
 
+                # オプティカルフローのマスクを掛ける
                 display_image *= mm.create_mask(rgb.copy(), 150)
+                # 動いている物体の重心を取得する
                 cnt, nonzero = mm.get_rgb_array_centroid(display_image)
                 curr_right_sholder_angle = 0
                 curr_left_sholder_angle = 0
@@ -101,6 +107,7 @@ def main():
                 sholder_angv = 0
                 right_hand_distance = 0
                 left_hand_distance = 0
+                # 関節の角度や角速度、手から荷物の距離を計測する
                 for person in keypoint_coords:
                     if np.all(person != 0):
                         curr_right_sholder_angle = mm.get_angle(person[7] - person[5], person[11] - person[5])
@@ -117,39 +124,47 @@ def main():
                         for joint in person:
                             joint = np.uint32(joint)
                             cv2.circle(display_image, (joint[1], joint[0]), 5, color=(255, 255, 255), thickness=1)
-                
+
+                # オプティカルフローで検出された画素が1つでもある場合は容疑度合いを計算する
                 if nonzero != 0:
                     distance = right_hand_distance if right_hand_distance > left_hand_distance else left_hand_distance
                     if distance < 100:
                         distance = 100
                     waist_angle = curr_right_waist_angle if abs(curr_right_waist_angle) > abs(curr_left_waist_angle) else curr_left_waist_angle
+                    # 現在のフレームにおける容疑の度合いを計算する(容疑の度合いが強いとobject_onlyのフレームの荷物が赤くマークされる)
                     red = pow(sholder_angv, 2) * nonzero * pow(distance - 100, 2) / (10000000 * abs(waist_angle - 180) + 1) * 255
                     if red > 255:
                         red = 255
                     red = int(red)
                     suspection_points[frame_count % len(suspection_points)] = red
+                    # 5フレーム内のマークの色の赤成分の平均が200を超えている場合はレコーディングを開始する
                     if np.sum(suspection_points) > 200 * 5 and not(recording):
                         recording = True
                         video_format = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
                         writer = cv2.VideoWriter("./" + str(frame_count) + ".mp4", video_format, 60, (len(display_image[0]), len(display_image)))
+                        # 99フレーム前から直近のフレームまでファイルに書き出す
                         for i in range(1, 100):
                             writer.write(old_frames[(frame_count + i) % 100])
-                    
+
+                    # レコーディングが有効な場合、現在のフレームをファイルに書き出す
                     if recording:
                         writer.write(old_frames[frame_count % 100])
                     
+                    # 動きの少ないフレームが連続した場合、レコーディングを終了する
                     if np.sum(suspection_points) < 200 and recording:
                         recording = False
                         writer.release()
                         writer = None
+                    # 荷物にマーカーを付ける
                     cv2.circle(display_image, (cnt[1], cnt[0]), 50, color=(255 - red, 255 - red, red), thickness=1)
                     cv2.line(display_image, (cnt[1] - 60, cnt[0]), (cnt[1] - 40, cnt[0]), color=(255 - red, 255 - red, red), thickness=1)
                     cv2.line(display_image, (cnt[1] + 40, cnt[0]), (cnt[1] + 60, cnt[0]), color=(255 - red, 255 - red, red), thickness=1)
                     cv2.line(display_image, (cnt[1], cnt[0] - 60), (cnt[1], cnt[0] - 40), color=(255 - red, 255 - red, red), thickness=1)
                     cv2.line(display_image, (cnt[1], cnt[0] + 40), (cnt[1], cnt[0] + 60), color=(255 - red, 255 - red, red), thickness=1)
                 else:
+                    # 容疑無し
                     suspection_points[frame_count % len(suspection_points)] = 0
-                    
+
                 prvs = next
                 cv2.imshow('current_frame', old_frames[frame_count % 100])
                 cv2.imshow('object_only', display_image)
@@ -159,7 +174,9 @@ def main():
                     break
             
             except:
+                # エラー処理
                 if writer != None:
+                    # ファイルに書き出し中の場合はファイルを閉じる
                     writer.release()
                     break
         cap.release()
