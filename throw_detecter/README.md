@@ -1,5 +1,5 @@
 # Throw Detecter
-This program detects the throwing of an object.  
+This program detects that someone has thrown an object and cuts and saves the moment
 
 # Requirements
 - python3.6
