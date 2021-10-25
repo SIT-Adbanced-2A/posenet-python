@@ -10,7 +10,7 @@ import math
 import posenet
 
 def main():
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         args = sys.argv
         model_cfg, model_outputs = posenet.load_model(101, sess)
         output_stride = model_cfg['output_stride']
@@ -171,6 +171,9 @@ def main():
                 cv2.imshow('-99 frame', old_frames[(frame_count + 1) % 100])
                 frame_count += 1
                 if cv2.waitKeyEx(1) & 0xFF == ord('q'):
+                    if writer != None:
+                    # ファイルに書き出し中の場合はファイルを閉じる
+                        writer.release()
                     break
             
             except:
