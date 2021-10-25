@@ -78,7 +78,7 @@ def main():
                     joint_mask[y, x] = np.zeros(3, dtype=np.uint8)
                 else:
                     joint_mask[y, x] = np.ones(3, dtype=np.uint8)
-
+        start = time.time()
         while True:
             try:
                 ret, input_image, display_image, output_scale = posenet.read_cap(
