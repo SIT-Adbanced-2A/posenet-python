@@ -24,6 +24,4 @@ def create_mask_cy(cnp.ndarray[DTYPE_t, ndim=3] src, DTYPE_t threshold):
                     src[y, x] = one_array
                 else:
                     src[y, x] = zero_array
-                x += 1
-            y += 1
     return src
