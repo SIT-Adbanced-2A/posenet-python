@@ -52,9 +52,15 @@ def main():
 
         while True:
             try:
-                input_image, display_image, output_scale = posenet.read_cap(
+                ret, input_image, display_image, output_scale = posenet.read_cap(
                     cap, scale_factor=0.7125, output_stride=output_stride)
                 
+                if not (ret):
+                    if not(writer is None):
+                        # ファイルに書き出し中の場合はファイルを閉じる
+                        writer.release()
+                    break
+
                 next = cv2.cvtColor(display_image.copy(), cv2.COLOR_BGR2GRAY)
                 old_frames[frame_count % record_size] = display_image.copy()
                 
@@ -166,6 +172,12 @@ def main():
                     suspection_points[frame_count % len(suspection_points)] = 0
 
                 prvs = next
+
+                if len(prvs) == 0:
+                    if not(writer is None):
+                    # ファイルに書き出し中の場合はファイルを閉じる
+                        writer.release()
+                    break
                 cv2.imshow('current_frame', old_frames[frame_count % 100])
                 cv2.imshow('object_only', display_image)
                 cv2.imshow('-99 frame', old_frames[(frame_count + 1) % 100])
@@ -178,10 +190,10 @@ def main():
             
             except:
                 # エラー処理
-                if writer != None:
+                if not(writer is None):
                     # ファイルに書き出し中の場合はファイルを閉じる
                     writer.release()
-                    break
+                break
         cap.release()
         print("VideoCapture was closed")
         cv2.destroyAllWindows()
