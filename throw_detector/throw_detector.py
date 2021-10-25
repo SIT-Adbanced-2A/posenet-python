@@ -10,7 +10,11 @@ from concurrent.futures import ThreadPoolExecutor as tpe
 
 import posenet
 
-def get_posenet_mask(heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result, output_stride, output_scale):
+def get_posenet_mask(sess, model_outputs, feed_dict_arg, output_stride, output_scale):
+    heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result = sess.run(
+        model_outputs,
+        feed_dict=feed_dict_arg)
+    
     pose_scores, keypoint_scores, keypoint_coords = posenet.decode_multi.decode_multiple_poses(
         heatmaps_result.squeeze(axis=0),
         offsets_result.squeeze(axis=0),
@@ -88,17 +92,11 @@ def main():
 
                 next = cv2.cvtColor(display_image.copy(), cv2.COLOR_BGR2GRAY)
                 old_frames[frame_count % record_size] = display_image.copy()
-                
-                heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result = sess.run(
-                    model_outputs,
-                    feed_dict={'image:0': input_image}
-                )
                 posenet_thread = mask_executor.submit(
                     get_posenet_mask,
-                    heatmaps_result,
-                    offsets_result,
-                    displacement_fwd_result,
-                    displacement_bwd_result,
+                    sess,
+                    model_outputs,
+                    {'image:0': input_image},
                     output_stride,
                     output_scale)
                 opticalflow_thread = mask_executor.submit(get_opticalflow_mask, prvs, next, hsv)
