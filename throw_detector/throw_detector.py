@@ -6,12 +6,37 @@ import time
 import sys
 import numpy as np
 import math
+from concurrent.futures import ThreadPoolExecutor as tpe
 
 import posenet
 
+def get_posenet_mask(heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result, output_stride, output_scale):
+    pose_scores, keypoint_scores, keypoint_coords = posenet.decode_multi.decode_multiple_poses(
+        heatmaps_result.squeeze(axis=0),
+        offsets_result.squeeze(axis=0),
+        displacement_fwd_result.squeeze(axis=0),
+        displacement_bwd_result.squeeze(axis=0),
+        output_stride=output_stride,
+        max_pose_detections=10,
+        min_pose_score=0.15)
+
+    keypoint_coords *= output_scale
+    return keypoint_coords
+
+def get_opticalflow_mask(prvs, next, hsv):
+    flow = cv2.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+    mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])
+    hsv[...,0] = ang*180/np.pi/2
+    hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
+    rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
+    return mm.create_mask(rgb, 150)
+
 def main():
+    start = time.time()
     with tf.compat.v1.Session() as sess:
         args = sys.argv
+        mask_executor = tpe(max_workers=2)
+        
         model_cfg, model_outputs = posenet.load_model(101, sess)
         output_stride = model_cfg['output_stride']
 
@@ -68,23 +93,18 @@ def main():
                     model_outputs,
                     feed_dict={'image:0': input_image}
                 )
-
-                pose_scores, keypoint_scores, keypoint_coords = posenet.decode_multi.decode_multiple_poses(
-                    heatmaps_result.squeeze(axis=0),
-                    offsets_result.squeeze(axis=0),
-                    displacement_fwd_result.squeeze(axis=0),
-                    displacement_bwd_result.squeeze(axis=0),
-                    output_stride=output_stride,
-                    max_pose_detections=10,
-                    min_pose_score=0.15)
-
-                keypoint_coords *= output_scale
-                flow = cv2.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-                mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])
-                hsv[...,0] = ang*180/np.pi/2
-                hsv[...,2] = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX)
-                rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)
-
+                posenet_thread = mask_executor.submit(
+                    get_posenet_mask,
+                    heatmaps_result,
+                    offsets_result,
+                    displacement_fwd_result,
+                    displacement_bwd_result,
+                    output_stride,
+                    output_scale)
+                opticalflow_thread = mask_executor.submit(get_opticalflow_mask, prvs, next, hsv)
+                # オプティカルフローのマスクを掛ける
+                display_image *= opticalflow_thread.result()
+                keypoint_coords = posenet_thread.result()
                 # 関節周りの画素を黒塗りする
                 for person in keypoint_coords:
                     for joint in person:
@@ -102,10 +122,9 @@ def main():
                                 continue
                             display_image[min_y : max_y, min_x : max_x] *= joint_mask[mask_min_y : mask_max_y, mask_min_x : mask_max_x]
 
-                # オプティカルフローのマスクを掛ける
-                display_image *= mm.create_mask(rgb.copy(), 150)
                 # 動いている物体の重心を取得する
                 cnt, nonzero = mm.get_rgb_array_centroid(display_image)
+
                 curr_right_sholder_angle = 0
                 curr_left_sholder_angle = 0
                 curr_right_waist_angle = 0
@@ -173,11 +192,6 @@ def main():
 
                 prvs = next
 
-                if len(prvs) == 0:
-                    if not(writer is None):
-                    # ファイルに書き出し中の場合はファイルを閉じる
-                        writer.release()
-                    break
                 cv2.imshow('current_frame', old_frames[frame_count % 100])
                 cv2.imshow('object_only', display_image)
                 cv2.imshow('-99 frame', old_frames[(frame_count + 1) % 100])
@@ -194,12 +208,14 @@ def main():
                     # ファイルに書き出し中の場合はファイルを閉じる
                     writer.release()
                 break
+        mask_executor.shutdown()
         cap.release()
         print("VideoCapture was closed")
         cv2.destroyAllWindows()
         print("Windows were closed")
         sess.close()
         print("Session was closed")
+        print("{}fps".format(frame_count / (time.time() - start)))
 
 if __name__ == "__main__":
     main()
